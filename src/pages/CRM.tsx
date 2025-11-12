@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Users, Send, Mail, Phone, GripVertical, Loader2, Settings } from "lucide-react";
+import { useSearch } from "@/context/SearchContext";
 
 const pipelineStages = [
   { id: 1, title: "Tous les prospects", color: "bg-muted" },
@@ -225,17 +226,44 @@ export default function CRM() {
     })
   );
 
+  const { query, setQuery, registerProspects } = useSearch();
+  const searchTerm = query.trim().toLowerCase();
+
+  const filteredProspects = useMemo(() => {
+    if (!searchTerm) {
+      return prospects;
+    }
+
+    return prospects.filter((prospect) =>
+      [prospect.name, prospect.project, prospect.email, prospect.phone, prospect.status]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(searchTerm)),
+    );
+  }, [prospects, searchTerm]);
+
+  const displayedProspects = searchTerm ? filteredProspects : prospects;
+
   const columns = useMemo(
     () =>
       pipelineStages.map((stage) => ({
         ...stage,
-        count:
-          stage.title === "Tous les prospects"
-            ? prospects.length
-            : prospects.filter((prospect) => prospect.status === stage.title).length,
+        count: displayedProspects.filter((prospect) => prospect.status === stage.title).length,
       })),
-    [prospects]
+    [displayedProspects]
   );
+
+  useEffect(() => {
+    registerProspects(
+      prospects.map((prospect) => ({
+        id: prospect.id,
+        name: prospect.name,
+        project: prospect.project,
+        status: prospect.status,
+        email: prospect.email,
+        phone: prospect.phone,
+      })),
+    );
+  }, [prospects, registerProspects]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as number);
@@ -248,10 +276,8 @@ export default function CRM() {
     if (!over) return;
 
     const prospectId = active.id as number;
-    const overId = over.id;
-
-    // Vérifier si on dépose sur une colonne (titre de colonne) ou sur un autre prospect
-    const targetColumn = columns.find((col) => col.title === overId);
+    const containerId = (over.data?.current as any)?.sortable?.containerId ?? over.id;
+    const targetColumn = columns.find((col) => col.title === containerId);
     if (!targetColumn) return;
 
     const newStatus = targetColumn.title as ProspectStatus;
@@ -382,6 +408,10 @@ export default function CRM() {
         status: newProspect.status,
       },
     ]);
+
+    if (query) {
+      setQuery("");
+    }
 
     handleDialogChange(false);
   };
@@ -614,7 +644,7 @@ export default function CRM() {
       >
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {columns.map((column) => (
-            <Column key={column.id} column={column} prospects={prospects} />
+            <Column key={column.id} column={column} prospects={displayedProspects} />
           ))}
         </div>
         <DragOverlay>

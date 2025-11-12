@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
 import { Hammer, MapPin, Calendar, Users, TrendingUp, Clock, DollarSign, Upload, X, Loader2, Sparkles } from "lucide-react";
+import { useSearch } from "@/context/SearchContext";
 
 const chantierStatuses = ["En cours", "Terminé", "En attente"] as const;
 
@@ -558,6 +559,34 @@ export default function Chantiers() {
     [newChantier.progress],
   );
 
+  const { query, registerChantiers } = useSearch();
+  const searchTerm = query.trim().toLowerCase();
+
+  const filteredChantiers = useMemo(() => {
+    if (!searchTerm) {
+      return chantiers;
+    }
+
+    return chantiers.filter((chantier) =>
+      [chantier.name, chantier.location, chantier.status, chantier.cost]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(searchTerm)),
+    );
+  }, [chantiers, searchTerm]);
+
+  useEffect(() => {
+    registerChantiers(
+      chantiers.map((chantier) => ({
+        id: chantier.id,
+        name: chantier.name,
+        location: chantier.location,
+        status: chantier.status,
+        cost: chantier.cost,
+        url: `/chantiers#chantier-${chantier.id}`,
+      })),
+    );
+  }, [chantiers, registerChantiers]);
+
   const resetForm = () =>
     setNewChantier({
       name: "",
@@ -731,8 +760,12 @@ export default function Chantiers() {
 
       {/* Liste des chantiers */}
       <div className="grid grid-cols-1 gap-4">
-        {chantiers.map((chantier) => (
-          <Card key={chantier.id} className="shadow-card hover:shadow-elevated transition-all duration-300">
+        {filteredChantiers.map((chantier) => (
+          <Card
+            key={chantier.id}
+            id={`chantier-${chantier.id}`}
+            className="shadow-card hover:shadow-elevated transition-all duration-300"
+          >
             <CardContent className="p-6">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex-1">
